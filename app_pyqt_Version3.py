@@ -13,7 +13,6 @@ PyQt5 版演示 — 多曲线绘图增强
 import sys
 import numpy as np
 import sympy as sp
-from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QTextEdit, QLabel, QGroupBox, QFormLayout, QMessageBox,
@@ -24,7 +23,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 
-from core import evaluate_expression, evaluate_function_on_grid, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig
+from core import evaluate_expression, evaluate_function_on_grid, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig, parse_expression, split_expressions
 
 # A simple color/style cycle for multiple curves
 _STYLE_CYCLE = [
@@ -43,7 +42,6 @@ class CalcMainWindow(QMainWindow):
         self._init_ui()
         self.setMinimumSize(1000, 640)
         self.history = []
-        self.memory = 0
         self.last_result = None
 
     def _init_ui(self):
@@ -224,14 +222,7 @@ class CalcMainWindow(QMainWindow):
             self._show_error("Range error", f"区间或采样参数无效: {e}")
             return
 
-        # split expressions by ; or newline, ignore empty
-        parts = []
-        for chunk in raw.split(';'):
-            for line in chunk.splitlines():
-                s = line.strip()
-                if s:
-                    parts.append(s)
-        exprs = parts
+        exprs = split_expressions(raw)
 
         xs = np.linspace(a, b, samples)
         self.ax.clear()
@@ -240,7 +231,7 @@ class CalcMainWindow(QMainWindow):
             style = _STYLE_CYCLE[idx % len(_STYLE_CYCLE)]
             try:
                 x = sp.symbols('x')
-                expr_sym = sp.sympify(expr)
+                expr_sym = parse_expression(expr)
                 f = sp.lambdify(x, expr_sym, modules=["numpy", "math"])
                 ys = evaluate_function_on_grid(f, xs)
                 if np.max(np.abs(np.imag(ys))) > 1e-12:

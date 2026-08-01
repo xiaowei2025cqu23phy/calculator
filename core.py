@@ -3,6 +3,7 @@
 依赖：sympy, numpy, scipy, matplotlib
 """
 import ast
+import re
 import numpy as np
 import sympy as sp
 from scipy import integrate
@@ -54,29 +55,35 @@ def parse_expression(expr_str):
     """Parse calculator expressions with calculator-friendly syntax."""
     if "__" in expr_str:
         raise ValueError("表达式包含不允许的名称")
-    return parse_expr(
+    function_names = set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", expr_str))
+    unsupported = function_names - set(_ALLOWED_EXPR_NAMES)
+    if unsupported:
+        raise ValueError(f"不支持的函数: {sorted(unsupported)[0]}")
+    expr = parse_expr(
         expr_str,
         local_dict=_ALLOWED_EXPR_NAMES.copy(),
         global_dict=_PARSE_GLOBALS,
         transformations=_PARSE_TRANSFORMATIONS,
         evaluate=True,
     )
+    allowed_functions = {value for value in _ALLOWED_EXPR_NAMES.values() if isinstance(value, sp.FunctionClass)}
+    for function_call in expr.atoms(sp.Function):
+        if function_call.func not in allowed_functions:
+            raise ValueError(f"不支持的函数: {function_call.func.__name__}")
+    return expr
+
+
+def split_expressions(text):
+    """Split a semicolon/newline-separated expression list."""
+    return [
+        line.strip()
+        for chunk in text.split(';')
+        for line in chunk.splitlines()
+        if line.strip()
+    ]
 
 
 def evaluate_function_on_grid(func, x):
-    """Evaluate a lambdified function and return one y value per x value."""
-    y = func(x)
-    arr = np.asarray(y, dtype=np.complex128)
-    if arr.ndim == 0:
-        return np.full_like(x, arr.item(), dtype=np.complex128)
-    try:
-        return np.broadcast_to(arr, x.shape).astype(np.complex128, copy=False)
-    except ValueError as e:
-        raise ValueError(f"函数返回值形状 {arr.shape} 无法匹配输入形状 {x.shape}") from e
-
-
-
-def _evaluate_function_on_grid(func, x):
     """Evaluate a lambdified function and return one y value per x value."""
     y = func(x)
     arr = np.asarray(y, dtype=np.complex128)
