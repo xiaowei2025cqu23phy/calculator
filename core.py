@@ -75,6 +75,19 @@ def evaluate_function_on_grid(func, x):
         raise ValueError(f"函数返回值形状 {arr.shape} 无法匹配输入形状 {x.shape}") from e
 
 
+
+def _evaluate_function_on_grid(func, x):
+    """Evaluate a lambdified function and return one y value per x value."""
+    y = func(x)
+    arr = np.asarray(y, dtype=np.complex128)
+    if arr.ndim == 0:
+        return np.full_like(x, arr.item(), dtype=np.complex128)
+    try:
+        return np.broadcast_to(arr, x.shape).astype(np.complex128, copy=False)
+    except ValueError as e:
+        raise ValueError(f"函数返回值形状 {arr.shape} 无法匹配输入形状 {x.shape}") from e
+
+
 # ===== 表达式评估 =====
 def evaluate_expression(expr_str, subs=None):
     """
