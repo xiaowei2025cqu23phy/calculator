@@ -8,6 +8,19 @@ import sympy as sp
 from scipy import integrate
 import matplotlib.pyplot as plt
 
+
+def evaluate_function_on_grid(func, x):
+    """Evaluate a lambdified function and return one y value per x value."""
+    y = func(x)
+    arr = np.asarray(y, dtype=np.complex128)
+    if arr.ndim == 0:
+        return np.full_like(x, arr.item(), dtype=np.complex128)
+    try:
+        return np.broadcast_to(arr, x.shape).astype(np.complex128, copy=False)
+    except ValueError as e:
+        raise ValueError(f"函数返回值形状 {arr.shape} 无法匹配输入形状 {x.shape}") from e
+
+
 # ===== 表达式评估 =====
 def evaluate_expression(expr_str, subs=None):
     """
@@ -71,8 +84,7 @@ def plot_function(expr_str, var_str='x', a=-10, b=10, points=400, show=True):
     f = sp.lambdify(var, expr, modules=["numpy", "math"])
     x = np.linspace(a, b, points)
     try:
-        y = f(x)
-        y = np.array(y, dtype=np.complex128)
+        y = evaluate_function_on_grid(f, x)
     except Exception as e:
         raise ValueError(f"函数数值化失败: {e}")
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -107,8 +119,10 @@ def parse_matrix(text):
         # 尝试用分号分行、逗号分列
         try:
             rows = [row.strip() for row in text.split(';') if row.strip()]
-            mat = [ [complex(x) for x in row.replace(',', ' ').split()] for row in rows ]
+            mat = [[complex(x) for x in row.replace(',', ' ').split()] for row in rows]
             arr = np.array(mat, dtype=np.complex128)
+            if arr.ndim != 2 or 0 in arr.shape:
+                raise ValueError("需要非空二维矩阵")
             return arr
         except Exception as e:
             raise ValueError(f"解析矩阵失败: {e}")
