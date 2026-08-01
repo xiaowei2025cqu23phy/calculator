@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from core import evaluate_expression, matrix_add, plot_function
+from core import evaluate_expression, matrix_add, parse_expression, plot_function
 
 
 def test_evaluate_expression_returns_float_for_real_expression():
@@ -24,3 +24,12 @@ def test_plot_function_supports_constant_expressions():
 def test_parse_matrix_rejects_empty_text():
     with pytest.raises(ValueError, match="解析矩阵失败"):
         matrix_add("", "[[1]]")
+
+
+def test_parse_expression_treats_caret_as_exponentiation():
+    assert evaluate_expression("2^3") == pytest.approx(8.0)
+
+
+def test_parse_expression_rejects_dunder_names():
+    with pytest.raises(ValueError, match="不允许"):
+        parse_expression('__import__("os")')

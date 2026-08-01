@@ -7,6 +7,60 @@ import numpy as np
 import sympy as sp
 from scipy import integrate
 import matplotlib.pyplot as plt
+from sympy.parsing.sympy_parser import (
+    convert_xor,
+    implicit_multiplication_application,
+    parse_expr,
+    standard_transformations,
+)
+
+_PARSE_TRANSFORMATIONS = standard_transformations + (
+    implicit_multiplication_application,
+    convert_xor,
+)
+
+_PARSE_GLOBALS = {
+    "__builtins__": {},
+    "Symbol": sp.Symbol,
+    "Integer": sp.Integer,
+    "Float": sp.Float,
+    "Rational": sp.Rational,
+    "Function": sp.Function,
+}
+
+_ALLOWED_EXPR_NAMES = {
+    "Abs": sp.Abs,
+    "E": sp.E,
+    "I": sp.I,
+    "acos": sp.acos,
+    "asin": sp.asin,
+    "atan": sp.atan,
+    "cos": sp.cos,
+    "cosh": sp.cosh,
+    "e": sp.E,
+    "exp": sp.exp,
+    "ln": sp.log,
+    "log": sp.log,
+    "pi": sp.pi,
+    "sin": sp.sin,
+    "sinh": sp.sinh,
+    "sqrt": sp.sqrt,
+    "tan": sp.tan,
+    "tanh": sp.tanh,
+}
+
+
+def parse_expression(expr_str):
+    """Parse calculator expressions with calculator-friendly syntax."""
+    if "__" in expr_str:
+        raise ValueError("表达式包含不允许的名称")
+    return parse_expr(
+        expr_str,
+        local_dict=_ALLOWED_EXPR_NAMES.copy(),
+        global_dict=_PARSE_GLOBALS,
+        transformations=_PARSE_TRANSFORMATIONS,
+        evaluate=True,
+    )
 
 
 def evaluate_function_on_grid(func, x):
@@ -28,7 +82,7 @@ def evaluate_expression(expr_str, subs=None):
     subs: 可选 dict，用于替换变量，例如 {'x': 1.23}
     """
     try:
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     if subs:
@@ -59,7 +113,7 @@ def definite_integral(expr_str, var_str, a, b):
     """
     try:
         var = sp.symbols(var_str)
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     f = sp.lambdify(var, expr, modules=["numpy", "math"])
@@ -78,7 +132,7 @@ def plot_function(expr_str, var_str='x', a=-10, b=10, points=400, show=True):
     """
     try:
         var = sp.symbols(var_str)
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     f = sp.lambdify(var, expr, modules=["numpy", "math"])
