@@ -3,10 +3,97 @@
 依赖：sympy, numpy, scipy, matplotlib
 """
 import ast
+import re
 import numpy as np
 import sympy as sp
 from scipy import integrate
 import matplotlib.pyplot as plt
+from sympy.parsing.sympy_parser import (
+    convert_xor,
+    implicit_multiplication_application,
+    parse_expr,
+    standard_transformations,
+)
+
+_PARSE_TRANSFORMATIONS = standard_transformations + (
+    implicit_multiplication_application,
+    convert_xor,
+)
+
+_PARSE_GLOBALS = {
+    "__builtins__": {},
+    "Symbol": sp.Symbol,
+    "Integer": sp.Integer,
+    "Float": sp.Float,
+    "Rational": sp.Rational,
+    "Function": sp.Function,
+}
+
+_ALLOWED_EXPR_NAMES = {
+    "Abs": sp.Abs,
+    "E": sp.E,
+    "I": sp.I,
+    "acos": sp.acos,
+    "asin": sp.asin,
+    "atan": sp.atan,
+    "cos": sp.cos,
+    "cosh": sp.cosh,
+    "e": sp.E,
+    "exp": sp.exp,
+    "ln": sp.log,
+    "log": sp.log,
+    "pi": sp.pi,
+    "sin": sp.sin,
+    "sinh": sp.sinh,
+    "sqrt": sp.sqrt,
+    "tan": sp.tan,
+    "tanh": sp.tanh,
+}
+
+
+def parse_expression(expr_str):
+    """Parse calculator expressions with calculator-friendly syntax."""
+    if "__" in expr_str:
+        raise ValueError("表达式包含不允许的名称")
+    function_names = set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", expr_str))
+    unsupported = function_names - set(_ALLOWED_EXPR_NAMES)
+    if unsupported:
+        raise ValueError(f"不支持的函数: {sorted(unsupported)[0]}")
+    expr = parse_expr(
+        expr_str,
+        local_dict=_ALLOWED_EXPR_NAMES.copy(),
+        global_dict=_PARSE_GLOBALS,
+        transformations=_PARSE_TRANSFORMATIONS,
+        evaluate=True,
+    )
+    allowed_functions = {value for value in _ALLOWED_EXPR_NAMES.values() if isinstance(value, sp.FunctionClass)}
+    for function_call in expr.atoms(sp.Function):
+        if function_call.func not in allowed_functions:
+            raise ValueError(f"不支持的函数: {function_call.func.__name__}")
+    return expr
+
+
+def split_expressions(text):
+    """Split a semicolon/newline-separated expression list."""
+    return [
+        line.strip()
+        for chunk in text.split(';')
+        for line in chunk.splitlines()
+        if line.strip()
+    ]
+
+
+def evaluate_function_on_grid(func, x):
+    """Evaluate a lambdified function and return one y value per x value."""
+    y = func(x)
+    arr = np.asarray(y, dtype=np.complex128)
+    if arr.ndim == 0:
+        return np.full_like(x, arr.item(), dtype=np.complex128)
+    try:
+        return np.broadcast_to(arr, x.shape).astype(np.complex128, copy=False)
+    except ValueError as e:
+        raise ValueError(f"函数返回值形状 {arr.shape} 无法匹配输入形状 {x.shape}") from e
+
 
 # ===== 表达式评估 =====
 def evaluate_expression(expr_str, subs=None):
@@ -15,7 +102,7 @@ def evaluate_expression(expr_str, subs=None):
     subs: 可选 dict，用于替换变量，例如 {'x': 1.23}
     """
     try:
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     if subs:
@@ -46,7 +133,7 @@ def definite_integral(expr_str, var_str, a, b):
     """
     try:
         var = sp.symbols(var_str)
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     f = sp.lambdify(var, expr, modules=["numpy", "math"])
@@ -65,14 +152,13 @@ def plot_function(expr_str, var_str='x', a=-10, b=10, points=400, show=True):
     """
     try:
         var = sp.symbols(var_str)
-        expr = sp.sympify(expr_str)
+        expr = parse_expression(expr_str)
     except Exception as e:
         raise ValueError(f"解析表达式失败: {e}")
     f = sp.lambdify(var, expr, modules=["numpy", "math"])
     x = np.linspace(a, b, points)
     try:
-        y = f(x)
-        y = np.array(y, dtype=np.complex128)
+        y = evaluate_function_on_grid(f, x)
     except Exception as e:
         raise ValueError(f"函数数值化失败: {e}")
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -107,8 +193,10 @@ def parse_matrix(text):
         # 尝试用分号分行、逗号分列
         try:
             rows = [row.strip() for row in text.split(';') if row.strip()]
-            mat = [ [complex(x) for x in row.replace(',', ' ').split()] for row in rows ]
+            mat = [[complex(x) for x in row.replace(',', ' ').split()] for row in rows]
             arr = np.array(mat, dtype=np.complex128)
+            if arr.ndim != 2 or 0 in arr.shape:
+                raise ValueError("需要非空二维矩阵")
             return arr
         except Exception as e:
             raise ValueError(f"解析矩阵失败: {e}")

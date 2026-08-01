@@ -2,10 +2,8 @@
 简单的 PySimpleGUI 应用：按钮式操作面板，支持表达式求值、定积分、函数绘图与矩阵操作（演示）
 运行：python app.py
 """
-import io
 import PySimpleGUI as sg
-from core import evaluate_expression, definite_integral, plot_function, parse_matrix, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig
-import matplotlib.pyplot as plt
+from core import evaluate_expression, definite_integral, plot_function, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig
 
 # 布局
 sg.theme('LightBlue')
@@ -95,6 +93,7 @@ while True:
             window['-MRES-'].update(txt)
 
     except Exception as e:
-        window['-RESULT-'].update(f"错误: {e}")
+        target = '-MRES-' if isinstance(event, str) and event.startswith('-M') else '-RESULT-'
+        window[target].update(f"错误: {e}")
 
 window.close()
