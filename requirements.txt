@@ -3,3 +3,5 @@ sympy>=1.10
 numpy>=1.23
 scipy>=1.9
 matplotlib>=3.6
+
+PyQt5>=5.15

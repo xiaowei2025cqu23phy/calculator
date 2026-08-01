@@ -6,8 +6,8 @@ PyQt5 版演示 — 多曲线绘图增强
 - 导出保存图像（PNG/SVG/PDF）
 - 可切换显示网格与调整采样点数
 运行:
-    pip install -r requirements-pyqt.txt
-    python app_pyqt.py
+    pip install -r requirements.txt
+    python app_pyqt_Version3.py
 依赖: PyQt5, matplotlib, numpy, sympy, scipy (core.py 依赖)
 """
 import sys
@@ -24,7 +24,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 
-from core import evaluate_expression, parse_matrix, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig
+from core import evaluate_expression, _evaluate_function_on_grid, matrix_add, matrix_mul, matrix_inv, matrix_det, matrix_eig
 
 # A simple color/style cycle for multiple curves
 _STYLE_CYCLE = [
@@ -225,8 +225,6 @@ class CalcMainWindow(QMainWindow):
             return
 
         # split expressions by ; or newline, ignore empty
-        exprs = [e.strip() for part in raw.split(';') for e in part.splitlines() for e in [part] if part.strip()]
-        # (alternate robust split)
         parts = []
         for chunk in raw.split(';'):
             for line in chunk.splitlines():
@@ -244,8 +242,7 @@ class CalcMainWindow(QMainWindow):
                 x = sp.symbols('x')
                 expr_sym = sp.sympify(expr)
                 f = sp.lambdify(x, expr_sym, modules=["numpy", "math"])
-                ys = f(xs)
-                ys = np.array(ys, dtype=np.complex128)
+                ys = _evaluate_function_on_grid(f, xs)
                 if np.max(np.abs(np.imag(ys))) > 1e-12:
                     self.ax.plot(xs, np.real(ys), label=f"{expr} (Re)", color=style['color'], linestyle=style['linestyle'])
                     self.ax.plot(xs, np.imag(ys), label=f"{expr} (Im)", color=style['color'], linestyle='--')
@@ -275,7 +272,7 @@ class CalcMainWindow(QMainWindow):
         if not fname:
             return
         try:
-            # matplotlib will guess format from extension; ensure directory exists
+            # matplotlib will guess the output format from the file extension
             self.fig.savefig(fname, bbox_inches='tight', dpi=150)
             self._show_message("Saved", f"Plot saved to: {fname}")
         except Exception as e:
